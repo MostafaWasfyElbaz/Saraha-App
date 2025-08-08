@@ -1,7 +1,10 @@
 import connectDB from "./DB/connection.js";
 import authController from "./Modules/authModule/auth.controller.js";
 import userController from "./Modules/userModule/user.controller.js";
+import cors from "cors";
+
 const bootStrap = async (app, express) => {
+  app.use(cors());
   await connectDB();
   app.use(express.json());
 

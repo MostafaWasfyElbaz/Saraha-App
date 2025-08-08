@@ -2,7 +2,10 @@ import { EventEmitter } from "events";
 import { sendEmail } from "./sendEmail.js";
 import { customAlphabet } from "nanoid";
 export const creatOTP = () => {
-  return customAlphabet(process.env.OTP_ALPAHBET, Number(OTP_SIZE))();
+  return customAlphabet(
+    process.env.OTP_ALPAHBET,
+    Number(process.env.OTP_SIZE)
+  )();
 };
 export const emailEmitter = new EventEmitter();
 

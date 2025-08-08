@@ -1,7 +1,7 @@
 export const successHandle = ({
   res,
   message = "done",
-  data = {},
+  data,
   status = 200,
 }) => {
   return res.status(status).json({
