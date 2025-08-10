@@ -9,7 +9,7 @@ const bootStrap = async (app, express) => {
   app.use(express.json());
 
   app.use("/auth", authController);
-  // app.use("/user",userController)
+  app.use("/user",userController)
 
   app.use((err, req, res, next) => {
     res.status(err.cause || 500).json({

@@ -1,4 +1,4 @@
-export const successHandle = ({
+export const successHandler = ({
   res,
   message = "done",
   data,

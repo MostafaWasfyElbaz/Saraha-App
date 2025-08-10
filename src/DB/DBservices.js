@@ -8,6 +8,6 @@ export const create = async (model, data) => {
 export const updateOne = async (model, filter, update) => {
   return await model.updateOne(filter, update);
 };
-export const findById = async (model, id) => {
-  return model.findById(id);
+export const findById = async (model, id, projection = {}) => {
+  return model.findById(id, projection);
 };

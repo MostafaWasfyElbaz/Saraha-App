@@ -3,7 +3,7 @@ import { hashPassword, comparePassword } from "../../Utils/bcrypt.js";
 import { encrypt, decrypt } from "../../Utils/crypto.js";
 
 export const Roles = { user: "user", admin: "admin" };
-const gender = { mail: "mail", femail: "femail" };
+export const gender = { mail: "mail", femail: "femail" };
 export const providers = { system: "system", google: "google" };
 Object.freeze(gender);
 Object.freeze(Roles);
@@ -13,15 +13,15 @@ const userSchema = new Schema(
   {
     name: {
       type: String,
-      required: [true, "Name is required"],
-      minlength: [3, "Name must be at least 3 characters long"],
-      maxlength: [15, "Name must be at most 15 characters long"],
+      required: [true, "Please enter your name."],
+      minlength: [3, "Your name must be at least 3 characters."],
+      maxlength: [15, "Your name can’t be longer than 15 characters."],
     },
 
     email: {
       type: String,
-      required: [true, "NaEmailme is required"],
-      unique: [true, "Email must be unique"],
+      required: [true, "Please enter your email address."],
+      unique: [true, "This email address is already registered."],
     },
 
     gender: {
@@ -32,9 +32,9 @@ const userSchema = new Schema(
 
     age: {
       type: Number,
-      required: function () {
+      required: [function () {
         return this.provider == providers.system ? true : false;
-      },
+      },"Please provide your age."],
     },
 
     provider: {
@@ -45,9 +45,9 @@ const userSchema = new Schema(
 
     password: {
       type: String,
-      required: function () {
+      required: [function () {
         return this.provider == providers.system ? true : false;
-      },
+      },"Please create a password."],
       minlength: [8, "Password must be at least 8 characters long"],
       set(value) {
         return hashPassword(value);
@@ -56,12 +56,12 @@ const userSchema = new Schema(
 
     phone: {
       type: String,
-      required: function () {
+      required: [function () {
         return this.provider == providers.system ? true : false;
-      },
-      unique: [true, "Phone number must be unique"],
+      },"Please enter your phone number."],
+      unique: [true, "This phone number is already in use."],
       set(value) {
-        return encrypt(value);
+        return value ? encrypt(value) : value;
       },
       get(value) {
         return value ? decrypt(value) : value;

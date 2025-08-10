@@ -1,6 +1,6 @@
 import { Roles, userModel, providers } from "../../DB/Models/userModel.js";
 import { findOne, create, updateOne } from "../../DB/DBservices.js";
-import { successHandle } from "../../Utils/successHandles.js";
+import { successHandler } from "../../Utils/successHandler.js";
 import {
   emailEmitter,
   creatOTP,
@@ -8,15 +8,24 @@ import {
 import jwt from "jsonwebtoken";
 import { decodeToken, types } from "../../Middelware/auth.middleware.js";
 import { OAuth2Client } from "google-auth-library";
+import {
+  missingFields,
+  notFoundUser,
+  expiredCode,
+  invalidCredentials,
+  emailAlreadyConfirmed,
+  existEmail,
+} from "../../Utils/errors.js";
 const client = new OAuth2Client();
+
 export const signup = async (req, res, next) => {
-  const { name, email, password, phone, age, gender = "mail" } = req.body;
+  const { name, role, email, password, phone, age, gender = "mail" } = req.body;
   if (!name || !email || !password || !phone || !age) {
-    return next(new Error("Missing required fields", { cause: 422 }));
+    return next(new missingFields());
   }
   const user = await findOne(userModel, { email });
   if (user) {
-    return next(new Error("Email already exists", { cause: 409 }));
+    return next(new existEmail());
   }
   const confirmOtp = creatOTP();
   const newUser = await create(userModel, {
@@ -26,62 +35,66 @@ export const signup = async (req, res, next) => {
     password,
     emailOTP: {
       otp: confirmOtp,
-      expiresIn: Date.now() + 60 * 1000,
+      expiresIn: Date.now() + Number(process.env.EXPIRATION),
     },
     age,
     gender,
+    role,
   });
 
   emailEmitter.emit("confirmEmail", email, confirmOtp);
 
-  return successHandle({ res, status: 201, data: newUser });
+  return successHandler({ res, status: 201, data: newUser });
 };
 
 export const confirmEmail = async (req, res, next) => {
   const { email, otp } = req.body;
 
   if (!email || !otp) {
-    return next(new Error("Email and OTP are required", { cause: 400 }));
+    return next(new missingFields());
   }
 
   const user = await findOne(userModel, { email });
   if (!user) {
-    return next(new Error("Invalid credentials", { cause: 404 }));
+    return next(new notFoundUser());
   }
   if (user.emailOTP.expiresIn <= Date.now()) {
-    return next(new Error("otp expired ... try to resend it", { cause: 400 }));
+    return next(new expiredCode());
   }
-  if (!!user.emailOTP.otp) {
-    return next(new Error("Invalid OTP", { cause: 400 }));
+  if (!user.emailOTP.otp) {
+    return next(new emailAlreadyConfirmed());
   }
   const isMatch = await user.comparePass(otp, user.emailOTP.otp);
   if (!isMatch) {
-    return next(new Error("Invalid OTP", { cause: 400 }));
+    return next(new invalidCredentials());
   }
   await updateOne(
     userModel,
     { email },
     { confirmed: true, $unset: { emailOTP: "" } }
   );
-  return successHandle({ res, status: 200 });
+  return successHandler({ res, status: 200 });
 };
 
 export const login = async (req, res, next) => {
   const { email, password } = req.body;
   if (!email || !password) {
-    next(new Error("invalid credintial", { cause: 404 }));
+    next(new missingFields());
   }
   const user = await findOne(userModel, { email });
 
   if (!user) {
-    next(new Error("user not found", { cause: 404 }));
+    next(new notFoundUser());
+  }
+  if (user.provider != providers.system) {
+    return next(new Error("you can't login with system login", { cause: 400 }));
   }
   if (!user.confirmed || user.emailOTP.otp) {
-    next(new Error("you should confirm the Email", { cause: 404 }));
+    next(new emailNotConfirmed());
   }
   const isMatch = await user.comparePass(password, user.password);
   if (!isMatch) {
-    return next(new Error("invalid credintials", { status: 404 }));
+    return next(new invalidCredentials());
   }
   const payload = { _id: user._id };
 
@@ -96,10 +109,16 @@ export const login = async (req, res, next) => {
       : process.env.ADMIN_REFRESH_SIGNITUER;
 
   const accessToken =
-    `${user.role} ` + jwt.sign(payload, accessSigniture, { expiresIn: "3m" });
+    `${user.role} ` +
+    jwt.sign(payload, accessSigniture, {
+      expiresIn: process.env.ACCESS_TOKEN_EXPIRATION,
+    });
   const refreshToken =
-    `${user.role} ` + jwt.sign(payload, refreshSigniture, { expiresIn: "7d" });
-  successHandle({
+    `${user.role} ` +
+    jwt.sign(payload, refreshSigniture, {
+      expiresIn: process.env.REFRESH_TOKEN_EXPIRATION,
+    });
+  successHandler({
     res,
     status: 200,
     data: {
@@ -111,6 +130,9 @@ export const login = async (req, res, next) => {
 
 export const refreshToken = async (req, res, next) => {
   const { authorization } = req.headers;
+  if (!authorization) {
+    return next(new missingFields());
+  }
   const user = await decodeToken({
     authorization,
     tokenType: types.refresh,
@@ -122,48 +144,53 @@ export const refreshToken = async (req, res, next) => {
     user.role == Roles.user
       ? process.env.USER_ACCESS_SIGNITUER
       : process.env.ADMIN_ACCESS_SIGNITUER,
-    { expiresIn: "3m" }
+    { expiresIn: process.env.ACCESS_TOKEN_EXPIRATION }
   );
-  successHandle({ res, data: { accessToken }, status: 200 });
+  successHandler({
+    res,
+    data: { accessToken: `${user.role} ${accessToken}` },
+    status: 200,
+  });
 };
 
 export const forgetPassword = async (req, res, next) => {
   const { email } = req.body;
   if (!email) {
-    return next(new Error("you should send the email", { cause: 404 }));
+    return next(new missingFields());
   }
   const user = await findOne(userModel, { email });
   if (!user) {
-    return next(new Error("user Not Found", { cause: 404 }));
+    return next(new notFoundUser());
   }
   if (!user.confirmed || user.emailOTP.otp) {
-    return next(new Error("you should confim your email", { cause: 400 }));
+    return next(new emailNotConfirmed());
   }
   const passwordOtp = creatOTP();
   user.passwordOTP.otp = passwordOtp;
-  user.passwordOTP.expiresIn = Date.now() + 60 * 1000;
+  user.passwordOTP.expiresIn = Date.now() + Number(process.env.EXPIRATION);
   await user.save();
   emailEmitter.emit("forgetPassword", email, passwordOtp);
-  successHandle({ res, status: 200 });
+  successHandler({ res, status: 200 });
 };
 
 export const changePassword = async (req, res, next) => {
   const { email, otp, newPassword } = req.body;
   if (!email || !otp || !newPassword) {
-    return next(new Error("invalid inputs", { cause: 404 }));
+    return next(new missingFields());
   }
   const user = await findOne(userModel, { email });
-  if (!user || !user.confirmed || user.emailOTP.otp) {
-    return next(
-      new Error("you should confirm you email first", { cause: 404 })
-    );
+  if (!user) {
+    return next(new notFoundUser());
+  }
+  if (!user.confirmed || user.emailOTP.otp) {
+    return next(new emailNotConfirmed());
   }
   if (user.passwordOTP.expiresIn <= Date.now()) {
-    return next(new Error("otp expired ... try to resend it", { cause: 400 }));
+    return next(new expiredCode());
   }
   const isMatch = user.comparePass(otp, user.passwordOTP.otp);
   if (!isMatch) {
-    return next(new Error("invalid otp", { cause: 404 }));
+    return next(new invalidCredentials());
   }
   await updateOne(
     userModel,
@@ -176,17 +203,17 @@ export const changePassword = async (req, res, next) => {
       },
     }
   );
-  successHandle({ res, status: 200 });
+  successHandler({ res, status: 200 });
 };
 
 export const resendOtp = async (req, res, next) => {
   const { email } = req.body;
   if (!email) {
-    return next(new Error("invalid inputs", { cause: 404 }));
+    return next(new missingFields());
   }
   const user = await findOne(userModel, { email });
   if (!user) {
-    return next(new Error("user not found", { cause: 404 }));
+    return next(new notFoundUser());
   }
   const otp = creatOTP();
   const type = req.url.includes("password")
@@ -200,13 +227,13 @@ export const resendOtp = async (req, res, next) => {
     ? null
     : "confirmEmail";
   if (type == null && event == null) {
-    return next(new Error("you already confirmed your email", { cause: 400 }));
+    return next(new emailAlreadyConfirmed());
   }
   emailEmitter.emit(event, email, otp);
   user[type].otp = otp;
-  user[type].expiresIn = Date.now() + 60 * 1000;
+  user[type].expiresIn = Date.now() + Number(process.env.EXPIRATION);
   await user.save();
-  successHandle({ res, status: 200 });
+  successHandler({ res, status: 200 });
 };
 
 export const socialLogin = async (req, res, next) => {
@@ -218,10 +245,12 @@ export const socialLogin = async (req, res, next) => {
   });
 
   const { email, name } = ticket.getPayload();
-  let user = await userModel.findOne({ email });
-
+  const user = await userModel.findOne({ email });
+  if (user?.confirmed == false) {
+    return next(new emailNotConfirmed());
+  }
   if (!user) {
-    user = await create(userModel, {
+    await create(userModel, {
       email,
       name,
       provider: providers.google,
@@ -233,14 +262,17 @@ export const socialLogin = async (req, res, next) => {
 
   const accessToken =
     `${user.role} ` +
-    jwt.sign(payload, process.env.USER_ACCESS_SIGNITUER, { expiresIn: "3m" });
+    jwt.sign(payload, process.env.USER_ACCESS_SIGNITUER, {
+      expiresIn: process.env.ACCESS_TOKEN_EXPIRATION,
+    });
   const refreshToken =
     `${user.role} ` +
-    jwt.sign(payload, process.env.USER_REFRESH_SIGNITUER, { expiresIn: "7d" });
-  successHandle({
+    jwt.sign(payload, process.env.USER_REFRESH_SIGNITUER, {
+      expiresIn: process.env.REFRESH_TOKEN_EXPIRATION,
+    });
+  successHandler({
     res,
     data: {
-      user,
       accessToken,
       refreshToken,
     },

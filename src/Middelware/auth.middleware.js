@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import { findById } from "../DB/DBservices.js";
 import { userModel, Roles } from "../DB/Models/userModel.js";
+import { invalidCredentials, notFoundUser } from "../Utils/errors.js";
 export const types = { access: "access", refresh: "refresh" };
 Object.freeze(types);
 
@@ -10,19 +11,11 @@ export const decodeToken = async ({
   next,
 }) => {
   if (!authorization) {
-    return next(new Error("invalid token", { cause: 404 }));
+    return next(new missingFields());
   }
   const [bearer, token] = authorization.split(" ");
   if (!bearer || !token) {
-    return next(new Error("invalid token", { cause: 404 }));
-  }
-  const data = jwt.verify(token, signituer);
-  const user = await findById(userModel, { _id: data._id });
-  if (!user) {
-    return next(new Error("User Not Found", { cause: 404 }));
-  }
-  if (user.credentialChangedAt?.getTime() >= data.iat * 1000) {
-    return next(new Error("you should login again", { cause: 400 }));
+    return next(new invalidCredentials());
   }
   let signituer = "";
 
@@ -39,6 +32,14 @@ export const decodeToken = async ({
           ? process.env.USER_REFRESH_SIGNITUER
           : process.env.ADMIN_REFRESH_SIGNITUER;
       break;
+  }
+  const data = jwt.verify(token, signituer);
+  const user = await findById(userModel, { _id: data._id });
+  if (!user) {
+    return next(new notFoundUser());
+  }
+  if (user.credentialChangedAt?.getTime() >= data.iat * 1000) {
+    return next(new Error("you should login again", { cause: 400 }));
   }
 
   return user;
