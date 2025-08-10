@@ -8,8 +8,9 @@ const bootStrap = async (app, express) => {
   await connectDB();
   app.use(express.json());
 
+  app.use("/uploads", express.static("uploads"));
   app.use("/auth", authController);
-  app.use("/user",userController)
+  app.use("/user", userController);
 
   app.use((err, req, res, next) => {
     res.status(err.cause || 500).json({

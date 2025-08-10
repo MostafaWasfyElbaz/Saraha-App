@@ -1,31 +1,31 @@
 # Saraha Backend API
 
-A Node.js backend REST API for user authentication, profile management, and email verification, built with Express, MongoDB, and JWT.
+A Node.js backend REST API for anonymous messaging, user authentication, profile management, and email verification, built with Express, MongoDB, and JWT.
 
 ## Features
 
-- User registration with email confirmation (OTP)
-- Login with password and social login (Google OAuth)
-- Password reset via OTP email
-- JWT access and refresh token authentication
-- User profile retrieval and update
-- Encrypted sensitive data (phone number)
-- Validation with Joi schemas
-- Centralized error and success handling
-- Email notifications via Nodemailer and event-driven OTP system
+- User registration with email confirmation (OTP).
+- Login with password and social login (Google OAuth).
+- Password reset via OTP email.
+- JWT access and refresh token authentication.
+- User Profile Management – Share Profile, Update Account Details, and upload profile image.
+- Profile Image Upload with Multer and user-specific folder structure.
+- Encrypted Sensitive Data (e.g., phone number with AES encryption).
+- Validation with Joi schemas.
+- Centralized error and success handling.
+- Email notifications via Nodemailer and event-driven OTP system.
+- Static File Hosting for uploaded images.
 
 ## Technologies
 
-- Node.js
-- Express.js
-- MongoDB & Mongoose
-- JWT (jsonwebtoken)
-- Bcrypt for password hashing
-- CryptoJS for AES encryption
-- Joi for request validation
-- Nodemailer for sending emails
-- Google OAuth client
-- dotenv for environment variables
+- Backend: Node.js, Express.js
+- Database: MongoDB & Mongoose
+- Authentication: JWT (jsonwebtoken), Google OAuth
+- Security: Bcrypt (password hashing), CryptoJS (AES encryption)
+- Validation: Joi
+- File Uploads: Multer
+- Email Service: Nodemailer (Gmail SMTP by default)
+- Environment Config: dotenv
 
 ## Getting Started
 
@@ -87,25 +87,34 @@ The server should now be running on `http://localhost:5000`
 
 ### Auth Module
 
-| Endpoint                  | Method | Description                   | Validation           |
-|---------------------------|--------|-------------------------------|----------------------|
-| `/auth/signup`            | POST   | Register new user             | SignupSchema         |
-| `/auth/login`             | POST   | Login with email & password   | LoginSchema          |
-| `/auth/social-login`      | POST   | Google OAuth login            | -                    |
-| `/auth/confirm_email`     | PATCH  | Confirm email with OTP        | ConfirmEmailSchema   |
-| `/auth/forget_password`   | PATCH  | Request password reset OTP    | ForgetPasswordSchema |
-| `/auth/change_password`   | PATCH  | Change password with OTP      | ChangePasswordSchema |
-| `/auth/refresh`           | PATCH  | Refresh access token          | -                    |
-| `/auth/resend-password-code` | PATCH | Resend password OTP         | ResendOtpSchema      |
-| `/auth/resend-confirm-code`  | PATCH | Resend email confirmation OTP| ResendOtpSchema      |
+| Endpoint                          | Method | Description                   | Validation             | Allow TO  |
+|-----------------------------------|--------|-------------------------------|------------------------|-----------|   
+| `/auth/signup`                    | POST   | Register new user             | SignupSchema           | All       |
+| `/auth/login`                     | POST   | Login with email & password   | LoginSchema            | All       |
+| `/auth/social-login`              | POST   | Google OAuth login            | -                      | All       |
+| `/auth/confirm_email`             | PATCH  | Confirm email with OTP        | ConfirmEmailSchema     | All       |
+| `/auth/forget_password`           | PATCH  | Request password reset OTP    | ForgetPasswordSchema   | All       |
+| `/auth/change_password`           | PATCH  | Change password with OTP      | ChangePasswordSchema   | All       |
+| `/auth/refresh`                   | PATCH  | Refresh access token          | -                      | All       |
+| `/auth/resend-password-code`      | PATCH  | Resend password OTP           | ResendOtpSchema        | All       |
+| `/auth/resend-confirm-code`       | PATCH  | Resend email confirmation OTP | ResendOtpSchema        | All       |
+| `/auth/update-email`              | PATCH  | Update User Email             | updateEmailSchema      | All       |
+| `/auth/confirm-new-email`         | PATCH  | Confirm New Email             | confirmNewEmailSchema  | All       |
+| `/auth/resend-confirm-email-code` | PATCH  | Resend New Email OTP          | -                      | All       |
+| `/auth/update-password`           | PATCH  | Update Account Password       | updatePasswordSchema   | All       |
+
 
 ### User Module
 
-| Endpoint                 | Method | Description                      | Auth Required | Validation          |
-|--------------------------|--------|---------------------------------|---------------|---------------------|
-| `/user/share-profile`    | GET    | Get shareable user profile link | Yes           | -                   |
-| `/user/user-profile/:id` | GET    | Get public user profile          | No            | -                   |
-| `/user/update`           | PATCH  | Update user profile (name, phone) | Yes         | UpdateProfileSchema  |
+| Endpoint                 | Method | Description                      | Auth Required | Validation          |Allow To  |
+|--------------------------|--------|----------------------------------|---------------|---------------------|----------|
+| `/user/share-profile`    | GET    | Get shareable user profile link  | Yes           | -                   | All      |
+| `/user/user-profile/:id` | GET    | Get public user profile          | No            | checkIdSchema       | All      |
+| `/user/update`           | PATCH  | Update user profile (name, phone)| Yes           | UpdateProfileSchema | All      |
+| `/user/deactivate/:id`   | PATCH  | Deactivate User Account          | Yes           | checkIdSchema       | All      |
+| `/user/activate/:id`     | PATCH  | Activate User Account            | Yes           | checkIdSchema       | All      |
+| `/user/upload-image`     | PATCH  | Upload Profile Image             | Yes           | Multer upload       | All      |
+| `/user/delete/:id`       | DELETE | Delete User Account              | Yes           | checkIdSchema       | Admin    |
 
 ## Folder Structure
 
@@ -115,7 +124,7 @@ Saraha-App/
 │   ├── DB/
 │   │   ├── Models/
 │   │   │   └── userModel.js
-│   │   └── DBservices.js
+│   │   ├── DBservices.js
 │   │   └── connection.js
 │   │ 
 │   ├── Middelware/
@@ -134,17 +143,24 @@ Saraha-App/
 │   │   │   ├── user.services.js
 │   │   │   ├── user.validation.js
 │   │   │   └── ...
-│   │   └── ...
+│   │   ├── messageModule/
+|   |   |    ├── message.controller.js
+|   |   |    ├── message.services.js
+|   |   |    ├── message.validation.js
+|   |   |    └── ...
+|   |   └── ...
 │   │
 │   ├── Utils/
 │   │   ├── ConfirmEmail/
 │   │   │   ├── emailEmitter.js
 │   │   │   ├── sendEmail.js
-│   │   │   └── generateHTML
+│   │   │   └── generateHTML.js
 │   │   ├── bcrypt.js
 │   │   ├── crypto.js
 │   │   ├── errors.js
 │   │   └── successHandler.js
+│   │   └── multer/
+│   │       └── multer.js
 │   │
 │   ├── config/
 │   │   └── .env
@@ -160,7 +176,8 @@ Saraha-App/
 - Use strong secrets for JWT and AES encryption keys.
 - Use Google OAuth credentials for social login.
 - Email service uses Gmail SMTP by default; modify `sendEmail.js` if needed.
-- Validation schemas enforce input integrity and reduce invalid data persistence.
+- Joi validation ensures clean and safe input handling.
+- Multer uploads images into user-specific directories for better organization
 
 ## License
 

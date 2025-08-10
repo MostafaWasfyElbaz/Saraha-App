@@ -1,7 +1,7 @@
-import noedemailer from "nodemailer";
+import nodemailer from "nodemailer";
 
 export const sendEmail = async (email, subject, html) => {
-  const transporter = noedemailer.createTransport({
+  const transporter = nodemailer.createTransport({
     host: process.env.EMAIL_HOST,
     port: Number(process.env.EMAIL_PORT),
     secure: true,
@@ -13,6 +13,7 @@ export const sendEmail = async (email, subject, html) => {
   });
 
   const main = async () => {
+    console.log("Sending email to: ", email);
     await transporter.sendMail({
       from: `sraha App <${process.env.EMAIL_USER}>`,
       to: email,

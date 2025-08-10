@@ -39,3 +39,21 @@ export class existEmail extends Error {
     super("Email already exists", { cause: 409 });
   }
 }
+
+export class unauthorizedAccess extends Error {
+  constructor() {
+    super("Unauthorized Access", { cause: 401 });
+  }
+}
+
+export class userIsNotActive extends Error {
+  constructor() {
+    super("User is not active", { cause: 401 });
+  }
+}
+
+export class deleteAdminAccount extends Error {
+  constructor() {
+    super("You can't delete admin account", { cause: 400 });
+  }
+}

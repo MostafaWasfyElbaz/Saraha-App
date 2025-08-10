@@ -3,7 +3,8 @@ import { generalvalidation } from "../../Middelware/validation.middleware.js";
 
 export const signupSchema = {
   body: joi.object({
-    name: generalvalidation.name.required(),
+    firstName: generalvalidation.firstName.required(),
+    lastName: generalvalidation.lastName.required(),
     email: generalvalidation.email.required(),
     phone: generalvalidation.phone.required(),
     password: generalvalidation.password.required(),
@@ -47,3 +48,24 @@ export const resendOtpSchema = {
     email: generalvalidation.email.required(),
   }),
 };
+
+export const updateEmailSchema = {
+  body: joi.object({
+    newEmail: generalvalidation.email,
+  }),
+};
+
+export const confirmNewEmailSchema = {
+  body: joi.object({
+    otp: generalvalidation.otp.required(),
+    newOtp: generalvalidation.otp.required(),
+  }),
+};
+
+export const updatePasswordSchema = {
+  body: joi.object({
+    oldPassword: generalvalidation.password.required(),
+    newPassword: generalvalidation.password.required(),
+  }),
+};
+

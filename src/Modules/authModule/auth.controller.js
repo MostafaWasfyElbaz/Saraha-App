@@ -8,7 +8,13 @@ import {
   forgetPasswordSchema,
   changePasswordSchema,
   resendOtpSchema,
+  updateEmailSchema,
+  confirmNewEmailSchema,
+  updatePasswordSchema,
 } from "./auth.validation.js";
+
+import { auth } from "../../Middelware/auth.middleware.js";
+
 const router = Router();
 
 router.post("/signup", validation(signupSchema), authService.signup);
@@ -27,6 +33,7 @@ router.patch(
   authService.forgetPassword
 );
 router.patch(
+  auth(),
   "/change_password",
   validation(changePasswordSchema),
   authService.changePassword
@@ -42,4 +49,28 @@ router.patch(
   authService.resendOtp
 );
 
+router.patch(
+  "/update-email",
+  validation(updateEmailSchema),
+  auth(),
+  authService.updateUserEmail
+);
+
+router.patch(
+  "/confirm-new-email",
+  validation(confirmNewEmailSchema),
+  auth(),
+  authService.confirmNewEmail
+);
+router.patch(
+  "/resend-confirm-email-code",
+  auth(),
+  authService.resendConfirmEmailCode
+);
+router.patch(
+  "/update-password",
+  validation(updatePasswordSchema),
+  auth(),
+  authService.updatePassword
+);
 export default router;

@@ -1,4 +1,4 @@
-import { Schema, model } from "mongoose";
+import { Schema, model, Types } from "mongoose";
 import { hashPassword, comparePassword } from "../../Utils/bcrypt.js";
 import { encrypt, decrypt } from "../../Utils/crypto.js";
 
@@ -11,7 +11,13 @@ Object.freeze(providers);
 
 const userSchema = new Schema(
   {
-    name: {
+    firstName: {
+      type: String,
+      required: [true, "Please enter your name."],
+      minlength: [3, "Your name must be at least 3 characters."],
+      maxlength: [15, "Your name can’t be longer than 15 characters."],
+    },
+    lastName: {
       type: String,
       required: [true, "Please enter your name."],
       minlength: [3, "Your name must be at least 3 characters."],
@@ -32,9 +38,12 @@ const userSchema = new Schema(
 
     age: {
       type: Number,
-      required: [function () {
-        return this.provider == providers.system ? true : false;
-      },"Please provide your age."],
+      required: [
+        function () {
+          return this.provider == providers.system ? true : false;
+        },
+        "Please provide your age.",
+      ],
     },
 
     provider: {
@@ -45,9 +54,12 @@ const userSchema = new Schema(
 
     password: {
       type: String,
-      required: [function () {
-        return this.provider == providers.system ? true : false;
-      },"Please create a password."],
+      required: [
+        function () {
+          return this.provider == providers.system ? true : false;
+        },
+        "Please create a password.",
+      ],
       minlength: [8, "Password must be at least 8 characters long"],
       set(value) {
         return hashPassword(value);
@@ -56,9 +68,12 @@ const userSchema = new Schema(
 
     phone: {
       type: String,
-      required: [function () {
-        return this.provider == providers.system ? true : false;
-      },"Please enter your phone number."],
+      required: [
+        function () {
+          return this.provider == providers.system ? true : false;
+        },
+        "Please enter your phone number.",
+      ],
       unique: [true, "This phone number is already in use."],
       set(value) {
         return value ? encrypt(value) : value;
@@ -88,11 +103,33 @@ const userSchema = new Schema(
       expiresIn: Date,
     },
 
+    newEmailOTP: {
+      otp: {
+        type: String,
+        set(value) {
+          return hashPassword(value);
+        },
+      },
+      expiresIn: Date,
+    },
+
+    newEmail: String,
     role: { type: String, enum: Object.values(Roles), default: Roles.user },
-
+    isActive: { type: Boolean, default: true },
     confirmed: { type: Boolean, default: false },
-
+    deletedBy: {
+      role: {
+        type: String,
+        enum: Object.values(Roles),
+      },
+      id: {
+        type: String,
+        ref: "users",
+      },
+    },
     credentialChangedAt: Date,
+    oldPasswords: [String],
+    profileImage: String,
   },
   {
     methods: {

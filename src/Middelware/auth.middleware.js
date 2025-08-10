@@ -1,7 +1,12 @@
 import jwt from "jsonwebtoken";
 import { findById } from "../DB/DBservices.js";
 import { userModel, Roles } from "../DB/Models/userModel.js";
-import { invalidCredentials, notFoundUser } from "../Utils/errors.js";
+import {
+  invalidCredentials,
+  notFoundUser,
+  unauthorizedAccess,
+  userIsNotActive,
+} from "../Utils/errors.js";
 export const types = { access: "access", refresh: "refresh" };
 Object.freeze(types);
 
@@ -45,10 +50,15 @@ export const decodeToken = async ({
   return user;
 };
 
-export const auth = () => {
+export const auth = (activation = true) => {
   return async (req, res, next) => {
     const authorization = req.headers.authorization;
     req.user = await decodeToken({ authorization, next });
+    if (activation) {
+      if (!req.user.isActive) {
+        return next(new userIsNotActive());
+      }
+    }
     next();
   };
 };
@@ -57,7 +67,7 @@ export const allowTo = (...Roles) => {
   return async (req, res, next) => {
     const user = req.user;
     if (!Roles.includes(user.role)) {
-      return next(new Error("you are not allowed to enter", { cause: 404 }));
+      return next(new unauthorizedAccess());
     }
     next();
   };

@@ -3,7 +3,7 @@ import { findOne, create, updateOne } from "../../DB/DBservices.js";
 import { successHandler } from "../../Utils/successHandler.js";
 import {
   emailEmitter,
-  creatOTP,
+  createOTP,
 } from "../../Utils/ConfirmEmail/emailEmitter.js";
 import jwt from "jsonwebtoken";
 import { decodeToken, types } from "../../Middelware/auth.middleware.js";
@@ -15,21 +15,24 @@ import {
   invalidCredentials,
   emailAlreadyConfirmed,
   existEmail,
+  emailNotConfirmed,
+  userIsNotActive
 } from "../../Utils/errors.js";
 const client = new OAuth2Client();
 
 export const signup = async (req, res, next) => {
-  const { name, role, email, password, phone, age, gender = "mail" } = req.body;
-  if (!name || !email || !password || !phone || !age) {
+  const { firstName, lastName, role, email, password, phone, age, gender } = req.body;
+  if (!firstName || !lastName || !email || !password || !phone || !age) {
     return next(new missingFields());
   }
   const user = await findOne(userModel, { email });
   if (user) {
     return next(new existEmail());
   }
-  const confirmOtp = creatOTP();
+  const confirmOtp = createOTP();
   const newUser = await create(userModel, {
-    name,
+    firstName,
+    lastName,
     email,
     phone,
     password,
@@ -61,7 +64,7 @@ export const confirmEmail = async (req, res, next) => {
   if (user.emailOTP.expiresIn <= Date.now()) {
     return next(new expiredCode());
   }
-  if (!user.emailOTP.otp) {
+  if (!user.emailOTP.otp || !user.confirmed) {
     return next(new emailAlreadyConfirmed());
   }
   const isMatch = await user.comparePass(otp, user.emailOTP.otp);
@@ -79,18 +82,18 @@ export const confirmEmail = async (req, res, next) => {
 export const login = async (req, res, next) => {
   const { email, password } = req.body;
   if (!email || !password) {
-    next(new missingFields());
+    return next(new missingFields());
   }
   const user = await findOne(userModel, { email });
 
   if (!user) {
-    next(new notFoundUser());
+    return next(new notFoundUser());
   }
   if (user.provider != providers.system) {
     return next(new Error("you can't login with system login", { cause: 400 }));
   }
-  if (!user.confirmed || user.emailOTP.otp) {
-    next(new emailNotConfirmed());
+  if (!user.confirmed) {
+    return next(new emailNotConfirmed());
   }
   const isMatch = await user.comparePass(password, user.password);
   if (!isMatch) {
@@ -165,7 +168,7 @@ export const forgetPassword = async (req, res, next) => {
   if (!user.confirmed || user.emailOTP.otp) {
     return next(new emailNotConfirmed());
   }
-  const passwordOtp = creatOTP();
+  const passwordOtp = createOTP();
   user.passwordOTP.otp = passwordOtp;
   user.passwordOTP.expiresIn = Date.now() + Number(process.env.EXPIRATION);
   await user.save();
@@ -215,7 +218,7 @@ export const resendOtp = async (req, res, next) => {
   if (!user) {
     return next(new notFoundUser());
   }
-  const otp = creatOTP();
+  const otp = createOTP();
   const type = req.url.includes("password")
     ? "passwordOTP"
     : user.confirmed == true
@@ -277,4 +280,127 @@ export const socialLogin = async (req, res, next) => {
       refreshToken,
     },
   });
+};
+
+export const updateUserEmail = async (req, res, next) => {
+  const { newEmail } = req.body;
+  const user = req.user;
+  if (!user.confirmed) {
+    return next(new emailNotConfirmed());
+  }
+  if (!newEmail) {
+    return next(new missingFields());
+  }
+  const isExist = await findOne(userModel, { email: newEmail });
+  if (isExist || user.email == newEmail) {
+    return next(new existEmail());
+  }
+  const oldEmailConfirmOtp = createOTP();
+  const newEmailConfirmOtp = createOTP();
+  await updateOne(
+    userModel,
+    { _id: user._id },
+    {
+      newEmail,
+      newEmailOTP: {
+        otp: newEmailConfirmOtp,
+        expiresIn: Date.now() + Number(process.env.EXPIRATION),
+      },
+      emailOTP: {
+        otp: oldEmailConfirmOtp,
+        expiresIn: Date.now() + Number(process.env.EXPIRATION),
+      },
+    }
+  );
+  emailEmitter.emit("confirmEmail", user.email, oldEmailConfirmOtp);
+  emailEmitter.emit("confirmEmail", newEmail, newEmailConfirmOtp);
+  successHandler({ res, status: 200 });
+};
+
+export const confirmNewEmail = async (req, res, next) => {
+  const user = req.user;
+  const { otp, newOtp } = req.body;
+  if (!otp || !newOtp) {
+    return next(new missingFields());
+  }
+  if (
+    user.emailOTP.expiresIn <= Date.now() ||
+    user.newEmailOTP.expiresIn <= Date.now()
+  ) {
+    return next(new expiredCode());
+  }
+  if (!user.emailOTP.otp || !user.newEmailOTP.otp) {
+    return next(new emailAlreadyConfirmed());
+  }
+  console.log(otp, user.emailOTP.otp);
+  console.log(newOtp, user.newEmailOTP.otp);
+  if (
+    !(await user.comparePass(otp, user.emailOTP.otp)) ||
+    !(await user.comparePass(newOtp, user.newEmailOTP.otp))
+  ) {
+    return next(new invalidCredentials());
+  }
+  await updateOne(
+    userModel,
+    { _id: user._id },
+    {
+      credentialChangedAt: Date.now(),
+      email: user.newEmail,
+      $unset: { newEmail: "", emailOTP: "", newEmailOTP: "" },
+    }
+  );
+  successHandler({ res, status: 200 });
+};
+
+export const resendConfirmEmailCode = async (req, res, next) => {
+  const user = req.user;
+  const oldEmailConfirmOtp = createOTP();
+  const newEmailConfirmOtp = createOTP();
+  await updateOne(
+    userModel,
+    { _id: user._id },
+    {
+      newEmailOTP: {
+        otp: newEmailConfirmOtp,
+        expiresIn: Date.now() + Number(process.env.EXPIRATION),
+      },
+      emailOTP: {
+        otp: oldEmailConfirmOtp,
+        expiresIn: Date.now() + Number(process.env.EXPIRATION),
+      },
+    }
+  );
+  emailEmitter.emit("confirmEmail", user.email, oldEmailConfirmOtp);
+  emailEmitter.emit("confirmEmail", user.newEmail, newEmailConfirmOtp);
+  successHandler({ res, status: 200 });
+};
+
+export const updatePassword = async (req, res, next) => {
+  const { oldPassword, newPassword } = req.body;
+  const user = req.user;
+  if (!user.confirmed) {
+    return next(new emailNotConfirmed());
+  }
+  if (!oldPassword || !newPassword) {
+    return next(new missingFields());
+  }
+  if(!user.isActive){
+    return next(new userIsNotActive());
+  }
+  if (oldPassword == newPassword) {
+    return next(new invalidCredentials());
+  }
+  if (!(await user.comparePass(oldPassword, user.password))) {
+    return next(new invalidCredentials());
+  }
+  for (const password of user.oldPasswords) {
+    if (await user.comparePass(newPassword, password)) {
+      return next(new Error("this password used before", { cause: 400 }));
+    }
+  }
+  user.oldPasswords.push(user.password);
+  user.password = newPassword;
+  user.credentialChangedAt = Date.now();
+  await user.save();
+  successHandler({ res, status: 200 });
 };

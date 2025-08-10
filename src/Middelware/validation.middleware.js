@@ -21,7 +21,6 @@ export const validation = (schema) => {
 };
 
 export const generalvalidation = {
-  name: joi.string().min(3).max(15),
   email: joi.string().email().message("Please enter a valid email address."),
   phone: joi
     .string()
@@ -38,4 +37,7 @@ export const generalvalidation = {
   gender: joi.string().valid(gender.mail, gender.femail),
   role: joi.string().valid(Roles.user, Roles.admin),
   otp: joi.string(),
+  id: joi.string().length(24).message("Invalid user id"),
+  firstName: joi.string().min(3).max(15),
+  lastName: joi.string().min(3).max(15),
 };

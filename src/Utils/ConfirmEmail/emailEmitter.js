@@ -1,7 +1,8 @@
 import { EventEmitter } from "events";
 import { sendEmail } from "./sendEmail.js";
 import { customAlphabet } from "nanoid";
-export const creatOTP = () => {
+
+export const createOTP = () => {
   return customAlphabet(
     process.env.OTP_ALPAHBET,
     Number(process.env.OTP_SIZE)
