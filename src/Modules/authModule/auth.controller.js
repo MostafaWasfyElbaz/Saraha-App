@@ -33,8 +33,8 @@ router.patch(
   authService.forgetPassword
 );
 router.patch(
-  auth(),
   "/change_password",
+  auth(),
   validation(changePasswordSchema),
   authService.changePassword
 );

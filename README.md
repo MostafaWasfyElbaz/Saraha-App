@@ -54,7 +54,7 @@ npm install
 3. Create `.env` file inside `/src/config/` and add the following variables:
 
 ```env
-PORT=5000
+PORT=anyPortNumber
 URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/dbname
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=465
@@ -64,15 +64,14 @@ USER_ACCESS_SIGNITUER=yourUserAccessSecret
 USER_REFRESH_SIGNITUER=yourUserRefreshSecret
 ADMIN_ACCESS_SIGNITUER=yourAdminAccessSecret
 ADMIN_REFRESH_SIGNITUER=yourAdminRefreshSecret
-ACCESS_TOKEN_EXPIRATION=15m
-REFRESH_TOKEN_EXPIRATION=7d
-SALT=10
+ACCESS_TOKEN_EXPIRATION=<anyNumber>m
+REFRESH_TOKEN_EXPIRATION=<anyNumber>d
+SALT=anyRoundNumberFrom1To14
 ENCRYPTION_KEY=32-character-random-string-for-AES
 OTP_ALPHABET=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ
-OTP_SIZE=6
+OTP_SIZE=anySizeNumber
 CLIENT_ID=your-google-oauth-client-id
-EXPIRATION=600000
-NODE_ENV=development
+EXPIRATION=anyNumberinMilliseconds
 ```
 
 4. Run the server
@@ -81,7 +80,7 @@ NODE_ENV=development
 npm start
 ```
 
-The server should now be running on `http://localhost:5000`
+The server should now be running on `http://localhost:<PORT>`
 
 ## API Endpoints
 
