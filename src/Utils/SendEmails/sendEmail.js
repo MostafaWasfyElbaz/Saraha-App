@@ -13,7 +13,6 @@ export const sendEmail = async (email, subject, html) => {
   });
 
   const main = async () => {
-    console.log("Sending email to: ", email);
     await transporter.sendMail({
       from: `sraha App <${process.env.EMAIL_USER}>`,
       to: email,

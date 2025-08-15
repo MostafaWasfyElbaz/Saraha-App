@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import { findById } from "../DB/DBservices.js";
+import { findById, findOne } from "../DB/DBservices.js";
 import { userModel, Roles } from "../DB/Models/userModel.js";
 import {
   invalidCredentials,
@@ -69,6 +69,77 @@ export const allowTo = (...Roles) => {
     if (!Roles.includes(user.role)) {
       return next(new unauthorizedAccess());
     }
+    next();
+  };
+};
+
+export const checkUserBan = (otpType) => {
+  return async (req, res, next) => {
+    const { email } = req.body;
+
+    const user = req.user || (await findOne(userModel, { email }));
+    if (!user) {
+      return next(new notFoundUser());
+    }
+
+    if (
+      user[otpType].attempts >= 5 &&
+      user[otpType].banExpiry &&
+      user[otpType].banExpiry > Date.now()
+    ) {
+      const remainingMs = user[otpType].banExpiry - Date.now();
+      const minutes = Math.floor(remainingMs / 1000 / 60);
+      const seconds = Math.floor((remainingMs / 1000) % 60);
+      return next(
+        new Error(
+          `you have exceeded the number of attempts wait ${minutes} minutes ${seconds} seconds`,
+          { cause: 400 }
+        )
+      );
+    } else if (
+      user[otpType].banExpiry &&
+      user[otpType].banExpiry <= Date.now()
+    ) {
+      user[otpType].attempts = 0;
+      user[otpType].banExpiry = null;
+      await user.save();
+    }
+    req.user = user;
+    next();
+  };
+};
+
+export const requestLimit = () => {
+  return async (req, res, next) => {
+    const { email } = req.body;
+    const user = req.user || (await findOne(userModel, { email }));
+    if (!user) {
+      return next(new notFoundUser());
+    }
+
+    if (
+      user.Requests.codeRequest >= 5 &&
+      user.Requests.banExpiry &&
+      user.Requests.banExpiry > Date.now()
+    ) {
+      const remainingMs = user.Requests.banExpiry - Date.now();
+      const minutes = Math.floor(remainingMs / 1000 / 60);
+      const seconds = Math.floor((remainingMs / 1000) % 60);
+      return next(
+        new Error(
+          `you have exceeded the number of attempts wait ${minutes} minutes ${seconds} seconds`,
+          { cause: 400 }
+        )
+      );
+    } else if (
+      user.Requests.banExpiry &&
+      user.Requests.banExpiry <= Date.now()
+    ) {
+      user.Requests.codeRequest = 0;
+      user.Requests.banExpiry = null;
+      await user.save();
+    }
+    req.user = user;
     next();
   };
 };

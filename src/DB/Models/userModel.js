@@ -11,13 +11,7 @@ Object.freeze(providers);
 
 const userSchema = new Schema(
   {
-    firstName: {
-      type: String,
-      required: [true, "Please enter your name."],
-      minlength: [3, "Your name must be at least 3 characters."],
-      maxlength: [15, "Your name can’t be longer than 15 characters."],
-    },
-    lastName: {
+    name: {
       type: String,
       required: [true, "Please enter your name."],
       minlength: [3, "Your name must be at least 3 characters."],
@@ -91,6 +85,8 @@ const userSchema = new Schema(
         },
       },
       expiresIn: Date,
+      attempts: Number,
+      banExpiry: Date,
     },
 
     passwordOTP: {
@@ -101,6 +97,8 @@ const userSchema = new Schema(
         },
       },
       expiresIn: Date,
+      attempts: Number,
+      banExpiry: Date,
     },
 
     newEmailOTP: {
@@ -111,8 +109,9 @@ const userSchema = new Schema(
         },
       },
       expiresIn: Date,
+      attempts: Number,
+      banExpiry: Date,
     },
-
     newEmail: String,
     role: { type: String, enum: Object.values(Roles), default: Roles.user },
     isActive: { type: Boolean, default: true },
@@ -130,6 +129,7 @@ const userSchema = new Schema(
     credentialChangedAt: Date,
     oldPasswords: [String],
     profileImage: String,
+    Requests: { codeRequest: Number, banExpiry: Date },
   },
   {
     methods: {

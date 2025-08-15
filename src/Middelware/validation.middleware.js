@@ -38,6 +38,5 @@ export const generalvalidation = {
   role: joi.string().valid(Roles.user, Roles.admin),
   otp: joi.string(),
   id: joi.string().length(24).message("Invalid user id"),
-  firstName: joi.string().min(3).max(15),
-  lastName: joi.string().min(3).max(15),
+  name: joi.string().min(3).max(15),
 };

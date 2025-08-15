@@ -12,8 +12,11 @@ import {
   confirmNewEmailSchema,
   updatePasswordSchema,
 } from "./auth.validation.js";
-
-import { auth } from "../../Middelware/auth.middleware.js";
+import {
+  auth,
+  checkUserBan,
+  requestLimit,
+} from "../../Middelware/auth.middleware.js";
 
 const router = Router();
 
@@ -21,12 +24,13 @@ router.post("/signup", validation(signupSchema), authService.signup);
 router.post("/login", validation(loginSchema), authService.login);
 router.post("/social-login", authService.socialLogin);
 
+router.patch("/refresh", authService.refreshToken);
 router.patch(
   "/confirm_email",
   validation(confirmEmailSchema),
+  checkUserBan("emailOTP"),
   authService.confirmEmail
 );
-router.patch("/refresh", authService.refreshToken);
 router.patch(
   "/forget_password",
   validation(forgetPasswordSchema),
@@ -34,18 +38,20 @@ router.patch(
 );
 router.patch(
   "/change_password",
-  auth(),
   validation(changePasswordSchema),
+  checkUserBan("passwordOTP"),
   authService.changePassword
 );
 router.patch(
   "/resend-password-code",
   validation(resendOtpSchema),
+  requestLimit(),
   authService.resendOtp
 );
 router.patch(
-  "/resend-confirm-code",
+  "/resend-email-confirm-code",
   validation(resendOtpSchema),
+  requestLimit(),
   authService.resendOtp
 );
 
@@ -60,12 +66,14 @@ router.patch(
   "/confirm-new-email",
   validation(confirmNewEmailSchema),
   auth(),
+  checkUserBan("newEmailOTP"),
   authService.confirmNewEmail
 );
 router.patch(
-  "/resend-confirm-email-code",
+  "/resend-new-email-confirm-code",
   auth(),
-  authService.resendConfirmEmailCode
+  requestLimit(),
+  authService.resendConfirmNewEmailCode
 );
 router.patch(
   "/update-password",

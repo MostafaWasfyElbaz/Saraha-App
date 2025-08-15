@@ -3,8 +3,7 @@ import { generalvalidation } from "../../Middelware/validation.middleware.js";
 
 export const signupSchema = {
   body: joi.object({
-    firstName: generalvalidation.firstName.required(),
-    lastName: generalvalidation.lastName.required(),
+    name: generalvalidation.name.required(),
     email: generalvalidation.email.required(),
     phone: generalvalidation.phone.required(),
     password: generalvalidation.password.required(),

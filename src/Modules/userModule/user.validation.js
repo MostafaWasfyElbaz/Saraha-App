@@ -3,8 +3,7 @@ import { generalvalidation } from "../../Middelware/validation.middleware.js";
 
 export const updateProfileSchema = {
   body: joi.object({
-    firstName: generalvalidation.firstName,
-    lastName: generalvalidation.lastName,
+    name: generalvalidation.name,
     phone: generalvalidation.phone,
   }),
 };

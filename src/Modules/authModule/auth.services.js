@@ -4,7 +4,7 @@ import { successHandler } from "../../Utils/successHandler.js";
 import {
   emailEmitter,
   createOTP,
-} from "../../Utils/ConfirmEmail/emailEmitter.js";
+} from "../../Utils/SendEmails/emailEmitter.js";
 import jwt from "jsonwebtoken";
 import { decodeToken, types } from "../../Middelware/auth.middleware.js";
 import { OAuth2Client } from "google-auth-library";
@@ -16,64 +16,67 @@ import {
   emailAlreadyConfirmed,
   existEmail,
   emailNotConfirmed,
-  userIsNotActive
+  userIsNotActive,
 } from "../../Utils/errors.js";
 const client = new OAuth2Client();
 
 export const signup = async (req, res, next) => {
-  const { firstName, lastName, role, email, password, phone, age, gender } = req.body;
-  if (!firstName || !lastName || !email || !password || !phone || !age) {
-    return next(new missingFields());
-  }
+  const { name, role, email, password, phone, age, gender } = req.body;
+
   const user = await findOne(userModel, { email });
   if (user) {
     return next(new existEmail());
   }
   const confirmOtp = createOTP();
+  emailEmitter.emit("confirmEmail", email, confirmOtp, name);
   const newUser = await create(userModel, {
-    firstName,
-    lastName,
+    name,
     email,
     phone,
     password,
     emailOTP: {
       otp: confirmOtp,
-      expiresIn: Date.now() + Number(process.env.EXPIRATION),
+      expiresIn: Date.now() + Number(process.env.OTP_EXPIRATION),
+      banExpiry: null,
+      attempts: 0,
     },
     age,
     gender,
     role,
+    Requests: { codeRequest: 0, banExpiry: null },
   });
-
-  emailEmitter.emit("confirmEmail", email, confirmOtp);
 
   return successHandler({ res, status: 201, data: newUser });
 };
 
 export const confirmEmail = async (req, res, next) => {
-  const { email, otp } = req.body;
+  const { otp } = req.body;
 
-  if (!email || !otp) {
-    return next(new missingFields());
-  }
+  const user = req.user;
 
-  const user = await findOne(userModel, { email });
-  if (!user) {
-    return next(new notFoundUser());
-  }
-  if (user.emailOTP.expiresIn <= Date.now()) {
-    return next(new expiredCode());
-  }
-  if (!user.emailOTP.otp || !user.confirmed) {
+  if (!user.emailOTP.otp || user.confirmed) {
     return next(new emailAlreadyConfirmed());
   }
   const isMatch = await user.comparePass(otp, user.emailOTP.otp);
   if (!isMatch) {
+    user.emailOTP.attempts++;
+    if (user.emailOTP.attempts >= 5) {
+      user.emailOTP.banExpiry = Date.now() + Number(process.env.BAN_EXPIRATION);
+    }
+    await user.save();
     return next(new invalidCredentials());
+  }
+  if (user.emailOTP.expiresIn <= Date.now()) {
+    user.emailOTP.attempts++;
+    if (user.emailOTP.attempts >= 5) {
+      user.emailOTP.banExpiry = Date.now() + Number(process.env.BAN_EXPIRATION);
+    }
+    await user.save();
+    return next(new expiredCode());
   }
   await updateOne(
     userModel,
-    { email },
+    { _id: user._id },
     { confirmed: true, $unset: { emailOTP: "" } }
   );
   return successHandler({ res, status: 200 });
@@ -81,9 +84,7 @@ export const confirmEmail = async (req, res, next) => {
 
 export const login = async (req, res, next) => {
   const { email, password } = req.body;
-  if (!email || !password) {
-    return next(new missingFields());
-  }
+
   const user = await findOne(userModel, { email });
 
   if (!user) {
@@ -158,46 +159,56 @@ export const refreshToken = async (req, res, next) => {
 
 export const forgetPassword = async (req, res, next) => {
   const { email } = req.body;
-  if (!email) {
-    return next(new missingFields());
-  }
+
   const user = await findOne(userModel, { email });
   if (!user) {
     return next(new notFoundUser());
   }
-  if (!user.confirmed || user.emailOTP.otp) {
+  if (!user.confirmed) {
     return next(new emailNotConfirmed());
   }
+  if (user.passwordOTP.otp) {
+    return next(new Error("try to resend code", { cause: 400 }));
+  }
   const passwordOtp = createOTP();
+  emailEmitter.emit("forgetPassword", email, passwordOtp, user.name);
   user.passwordOTP.otp = passwordOtp;
-  user.passwordOTP.expiresIn = Date.now() + Number(process.env.EXPIRATION);
+  user.passwordOTP.expiresIn = Date.now() + Number(process.env.OTP_EXPIRATION);
+  user.passwordOTP.attempts = 0;
+  user.passwordOTP.banExpiry = null;
+  user.Requests.codeRequest = 0;
   await user.save();
-  emailEmitter.emit("forgetPassword", email, passwordOtp);
   successHandler({ res, status: 200 });
 };
 
 export const changePassword = async (req, res, next) => {
-  const { email, otp, newPassword } = req.body;
-  if (!email || !otp || !newPassword) {
-    return next(new missingFields());
-  }
-  const user = await findOne(userModel, { email });
-  if (!user) {
-    return next(new notFoundUser());
-  }
-  if (!user.confirmed || user.emailOTP.otp) {
+  const { otp, newPassword } = req.body;
+  const user = req.user;
+  if (!user.confirmed) {
     return next(new emailNotConfirmed());
   }
-  if (user.passwordOTP.expiresIn <= Date.now()) {
-    return next(new expiredCode());
-  }
-  const isMatch = user.comparePass(otp, user.passwordOTP.otp);
+  const isMatch = await user.comparePass(otp, user.passwordOTP.otp);
   if (!isMatch) {
+    user.passwordOTP.attempts++;
+    if (user.passwordOTP.attempts >= 5) {
+      user.passwordOTP.banExpiry =
+        Date.now() + Number(process.env.BAN_EXPIRATION);
+    }
+    await user.save();
     return next(new invalidCredentials());
+  }
+  if (user.passwordOTP.expiresIn <= Date.now()) {
+    user.passwordOTP.attempts++;
+    if (user.passwordOTP.attempts >= 5) {
+      user.passwordOTP.banExpiry =
+        Date.now() + Number(process.env.BAN_EXPIRATION);
+    }
+    await user.save();
+    return next(new expiredCode());
   }
   await updateOne(
     userModel,
-    { email },
+    { _id: user._id },
     {
       credentialChangedAt: Date.now(),
       password: newPassword,
@@ -211,9 +222,7 @@ export const changePassword = async (req, res, next) => {
 
 export const resendOtp = async (req, res, next) => {
   const { email } = req.body;
-  if (!email) {
-    return next(new missingFields());
-  }
+
   const user = await findOne(userModel, { email });
   if (!user) {
     return next(new notFoundUser());
@@ -232,9 +241,13 @@ export const resendOtp = async (req, res, next) => {
   if (type == null && event == null) {
     return next(new emailAlreadyConfirmed());
   }
-  emailEmitter.emit(event, email, otp);
+  emailEmitter.emit(event, email, otp, user.name);
+  user.Requests.codeRequest++;
+  if (user.Requests.codeRequest >= 5) {
+    user.Requests.banExpiry = Date.now() + Number(process.env.BAN_EXPIRATION);
+  }
   user[type].otp = otp;
-  user[type].expiresIn = Date.now() + Number(process.env.EXPIRATION);
+  user[type].expiresIn = Date.now() + Number(process.env.OTP_EXPIRATION);
   await user.save();
   successHandler({ res, status: 200 });
 };
@@ -288,8 +301,8 @@ export const updateUserEmail = async (req, res, next) => {
   if (!user.confirmed) {
     return next(new emailNotConfirmed());
   }
-  if (!newEmail) {
-    return next(new missingFields());
+  if (user.newEmailOTP.otp) {
+    return next(new Error("try to resend code", { cause: 400 }));
   }
   const isExist = await findOne(userModel, { email: newEmail });
   if (isExist || user.email == newEmail) {
@@ -297,48 +310,59 @@ export const updateUserEmail = async (req, res, next) => {
   }
   const oldEmailConfirmOtp = createOTP();
   const newEmailConfirmOtp = createOTP();
+  emailEmitter.emit("confirmEmail", user.email, oldEmailConfirmOtp, user.name);
+  emailEmitter.emit("confirmEmail", newEmail, newEmailConfirmOtp, user.name);
   await updateOne(
     userModel,
     { _id: user._id },
     {
+      Requests: { codeRequest: 0, banExpiry: null },
       newEmail,
       newEmailOTP: {
         otp: newEmailConfirmOtp,
-        expiresIn: Date.now() + Number(process.env.EXPIRATION),
+        expiresIn: Date.now() + Number(process.env.OTP_EXPIRATION),
+        attempts: 0,
+        banExpiry: null,
       },
       emailOTP: {
         otp: oldEmailConfirmOtp,
-        expiresIn: Date.now() + Number(process.env.EXPIRATION),
+        expiresIn: Date.now() + Number(process.env.OTP_EXPIRATION),
       },
     }
   );
-  emailEmitter.emit("confirmEmail", user.email, oldEmailConfirmOtp);
-  emailEmitter.emit("confirmEmail", newEmail, newEmailConfirmOtp);
   successHandler({ res, status: 200 });
 };
 
 export const confirmNewEmail = async (req, res, next) => {
   const user = req.user;
   const { otp, newOtp } = req.body;
-  if (!otp || !newOtp) {
-    return next(new missingFields());
-  }
-  if (
-    user.emailOTP.expiresIn <= Date.now() ||
-    user.newEmailOTP.expiresIn <= Date.now()
-  ) {
-    return next(new expiredCode());
-  }
-  if (!user.emailOTP.otp || !user.newEmailOTP.otp) {
+
+  if (!user.newEmailOTP.otp || !user.emailOTP.otp) {
     return next(new emailAlreadyConfirmed());
   }
-  console.log(otp, user.emailOTP.otp);
-  console.log(newOtp, user.newEmailOTP.otp);
   if (
     !(await user.comparePass(otp, user.emailOTP.otp)) ||
     !(await user.comparePass(newOtp, user.newEmailOTP.otp))
   ) {
+    user.newEmailOTP.attempts++;
+    if (user.newEmailOTP.attempts >= 5) {
+      user.newEmailOTP.banExpiry =
+        Date.now() + Number(process.env.BAN_EXPIRATION);
+    }
+    await user.save();
     return next(new invalidCredentials());
+  }
+  if (
+    user.newEmailOTP.expiresIn <= Date.now() ||
+    user.emailOTP.expiresIn <= Date.now()
+  ) {
+    user.newEmailOTP.attempts++;
+    if (user.newEmailOTP.attempts >= 5) {
+      user.newEmailOTP.banExpiry =
+        Date.now() + Number(process.env.BAN_EXPIRATION);
+    }
+    await user.save();
+    return next(new expiredCode());
   }
   await updateOne(
     userModel,
@@ -352,26 +376,36 @@ export const confirmNewEmail = async (req, res, next) => {
   successHandler({ res, status: 200 });
 };
 
-export const resendConfirmEmailCode = async (req, res, next) => {
+export const resendConfirmNewEmailCode = async (req, res, next) => {
   const user = req.user;
   const oldEmailConfirmOtp = createOTP();
   const newEmailConfirmOtp = createOTP();
+  emailEmitter.emit("confirmEmail", user.email, oldEmailConfirmOtp, user.name);
+  emailEmitter.emit(
+    "confirmEmail",
+    user.newEmail,
+    newEmailConfirmOtp,
+    user.name
+  );
+  user.Requests.codeRequest++;
+  if (user.Requests.codeRequest >= 5) {
+    user.Requests.banExpiry = Date.now() + Number(process.env.BAN_EXPIRATION);
+  }
+  await user.save();
   await updateOne(
     userModel,
     { _id: user._id },
     {
       newEmailOTP: {
         otp: newEmailConfirmOtp,
-        expiresIn: Date.now() + Number(process.env.EXPIRATION),
+        expiresIn: Date.now() + Number(process.env.OTP_EXPIRATION),
       },
       emailOTP: {
         otp: oldEmailConfirmOtp,
-        expiresIn: Date.now() + Number(process.env.EXPIRATION),
+        expiresIn: Date.now() + Number(process.env.OTP_EXPIRATION),
       },
     }
   );
-  emailEmitter.emit("confirmEmail", user.email, oldEmailConfirmOtp);
-  emailEmitter.emit("confirmEmail", user.newEmail, newEmailConfirmOtp);
   successHandler({ res, status: 200 });
 };
 
@@ -381,15 +415,7 @@ export const updatePassword = async (req, res, next) => {
   if (!user.confirmed) {
     return next(new emailNotConfirmed());
   }
-  if (!oldPassword || !newPassword) {
-    return next(new missingFields());
-  }
-  if(!user.isActive){
-    return next(new userIsNotActive());
-  }
-  if (oldPassword == newPassword) {
-    return next(new invalidCredentials());
-  }
+
   if (!(await user.comparePass(oldPassword, user.password))) {
     return next(new invalidCredentials());
   }

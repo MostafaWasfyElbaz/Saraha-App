@@ -21,6 +21,7 @@ export const getUserProfile = async (req, res, next) => {
     return next(new notFoundUser());
   }
   user.profileImage = `${req.protocol}://${req.host}/${user.profileImage}`;
+
   successHandler({ res, data: user, status: 200 });
 };
 
@@ -36,12 +37,12 @@ export const updateUserProfile = async (req, res, next) => {
   if (!req.user) {
     return next(new notFoundUser());
   }
-  const { firstName, lastName, phone } = req.body;
-  if (!firstName && !lastName && !phone) {
+  const { name, phone } = req.body;
+  if (!name && !phone) {
     return next(new missingFields());
   }
-  await updateOne(userModel, { _id: req.user._id }, { firstName, lastName, phone });
-  successHandler({ res, data: { firstName, lastName, phone }, status: 200 });
+  await updateOne(userModel, { _id: req.user._id }, { name, phone });
+  successHandler({ res, data: { name, phone }, status: 200 });
 };
 
 export const deActivateUser = async (req, res, next) => {
