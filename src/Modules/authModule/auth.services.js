@@ -8,15 +8,7 @@ import {
 import jwt from "jsonwebtoken";
 import { decodeToken, types } from "../../Middelware/auth.middleware.js";
 import { OAuth2Client } from "google-auth-library";
-import {
-  missingFields,
-  notFoundUser,
-  expiredCode,
-  invalidCredentials,
-  emailAlreadyConfirmed,
-  existEmail,
-  emailNotConfirmed,
-} from "../../Utils/errors.js";
+import * as errorRes from "../../Utils/errors.js";
 import { nanoid } from "nanoid";
 import { revokedTokenModel } from "../../DB/Models/revokedToken.model.js";
 
@@ -27,7 +19,7 @@ export const signup = async (req, res, next) => {
 
   const user = await findOne(userModel, { email });
   if (user) {
-    return next(new existEmail());
+    return next(new errorRes.existEmail());
   }
   const confirmOtp = createOTP();
   emailEmitter.emit("confirmEmail", email, confirmOtp, name);
@@ -57,7 +49,7 @@ export const confirmEmail = async (req, res, next) => {
   const user = req.user;
 
   if (!user.emailOTP.otp || user.confirmed) {
-    return next(new emailAlreadyConfirmed());
+    return next(new errorRes.emailAlreadyConfirmed());
   }
   const isMatch = await user.comparePass(otp, user.emailOTP.otp);
   if (!isMatch) {
@@ -66,7 +58,7 @@ export const confirmEmail = async (req, res, next) => {
       user.emailOTP.banExpiry = Date.now() + Number(process.env.BAN_EXPIRATION);
     }
     await user.save();
-    return next(new invalidCredentials());
+    return next(new errorRes.invalidCredentials());
   }
   if (user.emailOTP.expiresIn <= Date.now()) {
     user.emailOTP.attempts++;
@@ -74,7 +66,7 @@ export const confirmEmail = async (req, res, next) => {
       user.emailOTP.banExpiry = Date.now() + Number(process.env.BAN_EXPIRATION);
     }
     await user.save();
-    return next(new expiredCode());
+    return next(new errorRes.expiredCode());
   }
   await updateOne(
     userModel,
@@ -90,17 +82,17 @@ export const login = async (req, res, next) => {
   const user = await findOne(userModel, { email });
 
   if (!user) {
-    return next(new notFoundUser());
+    return next(new errorRes.notFoundUser());
   }
   if (user.provider != providers.system) {
     return next(new Error("you can't login with system login", { cause: 400 }));
   }
   if (!user.confirmed) {
-    return next(new emailNotConfirmed());
+    return next(new errorRes.emailNotConfirmed());
   }
   const isMatch = await user.comparePass(password, user.password);
   if (!isMatch) {
-    return next(new invalidCredentials());
+    return next(new errorRes.invalidCredentials());
   }
   const payload = { _id: user._id };
   const jwtid = nanoid();
@@ -139,7 +131,7 @@ export const login = async (req, res, next) => {
 export const refreshToken = async (req, res, next) => {
   const { authorization } = req.headers;
   if (!authorization) {
-    return next(new missingFields());
+    return next(new errorRes.missingFields());
   }
   const { user, decoded } = await decodeToken({
     authorization,
@@ -166,10 +158,10 @@ export const forgetPassword = async (req, res, next) => {
 
   const user = await findOne(userModel, { email });
   if (!user) {
-    return next(new notFoundUser());
+    return next(new errorRes.notFoundUser());
   }
   if (!user.confirmed) {
-    return next(new emailNotConfirmed());
+    return next(new errorRes.emailNotConfirmed());
   }
   if (user.passwordOTP.otp) {
     return next(new Error("try to resend code", { cause: 400 }));
@@ -189,7 +181,7 @@ export const changePassword = async (req, res, next) => {
   const { otp, newPassword } = req.body;
   const user = req.user;
   if (!user.confirmed) {
-    return next(new emailNotConfirmed());
+    return next(new errorRes.emailNotConfirmed());
   }
   const isMatch = await user.comparePass(otp, user.passwordOTP.otp);
   if (!isMatch) {
@@ -199,7 +191,7 @@ export const changePassword = async (req, res, next) => {
         Date.now() + Number(process.env.BAN_EXPIRATION);
     }
     await user.save();
-    return next(new invalidCredentials());
+    return next(new errorRes.invalidCredentials());
   }
   if (user.passwordOTP.expiresIn <= Date.now()) {
     user.passwordOTP.attempts++;
@@ -208,7 +200,7 @@ export const changePassword = async (req, res, next) => {
         Date.now() + Number(process.env.BAN_EXPIRATION);
     }
     await user.save();
-    return next(new expiredCode());
+    return next(new errorRes.expiredCode());
   }
   await updateOne(
     userModel,
@@ -229,7 +221,7 @@ export const resendOtp = async (req, res, next) => {
 
   const user = await findOne(userModel, { email });
   if (!user) {
-    return next(new notFoundUser());
+    return next(new errorRes.notFoundUser());
   }
   const otp = createOTP();
   const type = req.url.includes("password")
@@ -243,7 +235,7 @@ export const resendOtp = async (req, res, next) => {
     ? null
     : "confirmEmail";
   if (type == null && event == null) {
-    return next(new emailAlreadyConfirmed());
+    return next(new errorRes.emailAlreadyConfirmed());
   }
   emailEmitter.emit(event, email, otp, user.name);
   user.Requests.codeRequest++;
@@ -267,7 +259,7 @@ export const socialLogin = async (req, res, next) => {
   const { email, name } = ticket.getPayload();
   const user = await userModel.findOne({ email });
   if (user?.confirmed == false) {
-    return next(new emailNotConfirmed());
+    return next(new errorRes.emailNotConfirmed());
   }
   if (!user) {
     await create(userModel, {
@@ -303,14 +295,14 @@ export const updateUserEmail = async (req, res, next) => {
   const { newEmail } = req.body;
   const user = req.user;
   if (!user.confirmed) {
-    return next(new emailNotConfirmed());
+    return next(new errorRes.emailNotConfirmed());
   }
   if (user.newEmailOTP.otp) {
     return next(new Error("try to resend code", { cause: 400 }));
   }
   const isExist = await findOne(userModel, { email: newEmail });
   if (isExist || user.email == newEmail) {
-    return next(new existEmail());
+    return next(new errorRes.existEmail());
   }
   const oldEmailConfirmOtp = createOTP();
   const newEmailConfirmOtp = createOTP();
@@ -342,7 +334,7 @@ export const confirmNewEmail = async (req, res, next) => {
   const { otp, newOtp } = req.body;
 
   if (!user.newEmailOTP.otp || !user.emailOTP.otp) {
-    return next(new emailAlreadyConfirmed());
+    return next(new errorRes.emailAlreadyConfirmed());
   }
   if (
     !(await user.comparePass(otp, user.emailOTP.otp)) ||
@@ -354,7 +346,7 @@ export const confirmNewEmail = async (req, res, next) => {
         Date.now() + Number(process.env.BAN_EXPIRATION);
     }
     await user.save();
-    return next(new invalidCredentials());
+    return next(new errorRes.invalidCredentials());
   }
   if (
     user.newEmailOTP.expiresIn <= Date.now() ||
@@ -366,7 +358,7 @@ export const confirmNewEmail = async (req, res, next) => {
         Date.now() + Number(process.env.BAN_EXPIRATION);
     }
     await user.save();
-    return next(new expiredCode());
+    return next(new errorRes.expiredCode());
   }
   await updateOne(
     userModel,
@@ -417,11 +409,11 @@ export const updatePassword = async (req, res, next) => {
   const { oldPassword, newPassword } = req.body;
   const user = req.user;
   if (!user.confirmed) {
-    return next(new emailNotConfirmed());
+    return next(new errorRes.emailNotConfirmed());
   }
 
   if (!(await user.comparePass(oldPassword, user.password))) {
-    return next(new invalidCredentials());
+    return next(new errorRes.invalidCredentials());
   }
   for (const password of user.oldPasswords) {
     if (await user.comparePass(newPassword, password)) {

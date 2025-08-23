@@ -162,4 +162,10 @@ const userSchema = new Schema(
   }
 );
 
+userSchema.virtual("messages", {
+  localField: "_id",
+  foreignField: "to",
+  ref: "messages",
+});
+
 export const userModel = model("users", userSchema);

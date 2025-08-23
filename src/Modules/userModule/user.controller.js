@@ -2,17 +2,16 @@ import { Router } from "express";
 import * as userServices from "./user.services.js";
 import { auth } from "../../Middelware/auth.middleware.js";
 import { validation } from "../../Middelware/validation.middleware.js";
-import {
-  updateProfileSchema,
-  uploadImageSchema,
-  uploadCoverImageSchema,
-} from "./user.validation.js";
+import * as userValidation from "./user.validation.js";
 import { allowTo } from "../../Middelware/auth.middleware.js";
 import { Roles } from "../../DB/Models/userModel.js";
 import { checkIdSchema } from "./user.validation.js";
 import { uploadImage } from "../../Utils/multer/multer.js";
 import { uploadImageCloud } from "../../Utils/multer/multer cloud.js";
-const router = Router();
+import messagesRouter from "../messageModule/message.controller.js";
+const router = Router({ caseSensitive: true, strict: true });
+
+router.use("/user-profile/:id/messages", messagesRouter)
 
 router.get("/share-profile", auth(), userServices.shareUserProfile);
 router.get(
@@ -23,7 +22,7 @@ router.get(
 
 router.patch(
   "/update",
-  validation(updateProfileSchema),
+  validation(userValidation.updateProfileSchema),
   auth(),
   userServices.updateUserProfile
 );
@@ -43,21 +42,21 @@ router.patch(
   "/local-upload-profile-image",
   auth(),
   uploadImage({ folder: "profile" }).single("image"),
-  validation(uploadImageSchema),
+  validation(userValidation.uploadImageSchema),
   userServices.localUploadProfileImage
 );
 router.patch(
   "/cloud-upload-profile-image",
   auth(),
   uploadImageCloud({}).single("image"),
-  validation(uploadImageSchema),
+  validation(userValidation.uploadImageSchema),
   userServices.cloudUploadProfileImage
 );
 router.patch(
   "/cloud-upload-cover-images",
   auth(),
   uploadImageCloud({ folder: "cover" }).array("images", 5),
-  validation(uploadCoverImageSchema),
+  validation(userValidation.uploadCoverImageSchema),
   userServices.cloudUploadCoverImage
 );
 

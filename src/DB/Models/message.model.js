@@ -30,4 +30,4 @@ export const messageSchema = new Schema(
   { timestamps: true }
 );
 
-export const messageModel = model("message", messageSchema);
+export const messageModel = model("messages", messageSchema);

@@ -43,3 +43,23 @@ export const sendMessage = async (req, res, next) => {
   });
   successHandler({ res, data: message, status: 200 });
 };
+
+export const getUserMessages = async (req, res, next) => {
+  const userId = req.params.id;
+  const messages = await userModel
+    .findById({ _id: userId })
+    .select("name")
+    .populate([
+      {
+        path: "messages",
+        select: "from body images -to",
+        populate: [
+          {
+            path: "from",
+            select: "name",
+          },
+        ],
+      },
+    ]);
+  successHandler({ res, data: messages, status: 200 });
+};
