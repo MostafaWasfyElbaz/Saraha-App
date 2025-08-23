@@ -67,4 +67,3 @@ export const updatePasswordSchema = {
     newPassword: generalvalidation.password.required(),
   }),
 };
-

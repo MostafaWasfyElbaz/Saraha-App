@@ -11,6 +11,7 @@
   "description": "",
   "dependencies": {
     "bcrypt": "^6.0.0",
+    "chalk": "^5.6.0",
     "cloudinary": "^2.7.0",
     "cors": "^2.8.5",
     "crypto-js": "^4.2.0",
@@ -20,6 +21,7 @@
     "joi": "^18.0.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.17.0",
+    "morgan": "^1.10.1",
     "multer": "^2.0.2",
     "nanoid": "^5.1.5",
     "nodemailer": "^7.0.5"
