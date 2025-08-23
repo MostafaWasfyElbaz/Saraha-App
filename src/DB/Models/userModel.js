@@ -128,7 +128,17 @@ const userSchema = new Schema(
     },
     credentialChangedAt: Date,
     oldPasswords: [String],
-    profileImage: String,
+    localProfileImage: String,
+    cloudProfileImage: {
+      public_id: String,
+      secure_url: String,
+    },
+    cloudCoverImage: [
+      {
+        public_id: String,
+        secure_url: String,
+      },
+    ],
     Requests: { codeRequest: Number, banExpiry: Date },
   },
   {

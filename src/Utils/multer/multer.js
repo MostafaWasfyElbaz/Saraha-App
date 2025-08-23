@@ -2,21 +2,38 @@ import multer from "multer";
 import fs from "fs";
 import path from "path";
 
-export const uploadImage = () => {
+export const fileType = {
+  image: ["image/gif", "image/jpeg", "image/jpg", "image/png", "image/webp"],
+  video: ["video/mp4", "video/webm"],
+};
+Object.freeze(fileType);
+
+export const uploadImage = ({ folder = "general", type = fileType.image }) => {
   const storage = multer.diskStorage({
     destination: (req, file, callback) => {
-      const dest = `uploads/${req.user.firstName}_${req.user.lastName}_${req.user._id}`;
-      req.dest = dest;
-      const fullDest = path.resolve(".", dest);
-      if (!fs.existsSync(fullDest)) {
-        fs.mkdirSync(fullDest, { recursive: true });
+      const dest = `src/uploads/${req.user._id}/${folder}`;
+
+      if (folder == "profile" && fs.existsSync(dest)) {
+        fs.rmSync(dest, { recursive: true });
       }
-      callback(null, fullDest);
+
+      if (!fs.existsSync(dest)) {
+        fs.mkdirSync(dest, { recursive: true });
+      }
+      req.dest = dest;
+      callback(null, dest);
     },
     filename: (req, file, callback) => {
-      const fileName = `${req.user.firstName}_${req.user.lastName}_${file.originalname}`;
+      const fileName = `${Date.now()}_${file.originalname}`;
       callback(null, fileName);
     },
   });
-  return multer({ storage });
+  const fileFilter = (req, file, callback) => {
+    if (type.includes(file.mimetype)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Invalid file type"), false);
+    }
+  };
+  return multer({ storage, fileFilter });
 };

@@ -23,6 +23,7 @@ const router = Router();
 router.post("/signup", validation(signupSchema), authService.signup);
 router.post("/login", validation(loginSchema), authService.login);
 router.post("/social-login", authService.socialLogin);
+router.post("/logout", auth(), authService.logout);
 
 router.patch("/refresh", authService.refreshToken);
 router.patch(

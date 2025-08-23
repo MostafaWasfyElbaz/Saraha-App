@@ -2,11 +2,16 @@ import { Router } from "express";
 import * as userServices from "./user.services.js";
 import { auth } from "../../Middelware/auth.middleware.js";
 import { validation } from "../../Middelware/validation.middleware.js";
-import { updateProfileSchema } from "./user.validation.js";
+import {
+  updateProfileSchema,
+  uploadImageSchema,
+  uploadCoverImageSchema,
+} from "./user.validation.js";
 import { allowTo } from "../../Middelware/auth.middleware.js";
 import { Roles } from "../../DB/Models/userModel.js";
 import { checkIdSchema } from "./user.validation.js";
 import { uploadImage } from "../../Utils/multer/multer.js";
+import { uploadImageCloud } from "../../Utils/multer/multer cloud.js";
 const router = Router();
 
 router.get("/share-profile", auth(), userServices.shareUserProfile);
@@ -35,11 +40,27 @@ router.patch(
   userServices.activateUser
 );
 router.patch(
-  "/upload-profile-image",
+  "/local-upload-profile-image",
   auth(),
-  uploadImage().single("image"),
-  userServices.uploadImage
+  uploadImage({ folder: "profile" }).single("image"),
+  validation(uploadImageSchema),
+  userServices.localUploadProfileImage
 );
+router.patch(
+  "/cloud-upload-profile-image",
+  auth(),
+  uploadImageCloud({}).single("image"),
+  validation(uploadImageSchema),
+  userServices.cloudUploadProfileImage
+);
+router.patch(
+  "/cloud-upload-cover-images",
+  auth(),
+  uploadImageCloud({ folder: "cover" }).array("images", 5),
+  validation(uploadCoverImageSchema),
+  userServices.cloudUploadCoverImage
+);
+
 router.delete(
   "/delete/:id",
   validation(checkIdSchema),

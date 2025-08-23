@@ -7,6 +7,7 @@ import {
   unauthorizedAccess,
   userIsNotActive,
 } from "../Utils/errors.js";
+import { revokedTokenModel } from "../DB/Models/revokedToken.model.js";
 export const types = { access: "access", refresh: "refresh" };
 Object.freeze(types);
 
@@ -39,6 +40,10 @@ export const decodeToken = async ({
       break;
   }
   const data = jwt.verify(token, signituer);
+  const isRevoked = await findOne(revokedTokenModel, { jti: data.jti });
+  if (isRevoked) {
+    return next(new Error("this token is revoked", { cause: 401 }));
+  }
   const user = await findById(userModel, { _id: data._id });
   if (!user) {
     return next(new notFoundUser());
@@ -47,13 +52,15 @@ export const decodeToken = async ({
     return next(new Error("you should login again", { cause: 400 }));
   }
 
-  return user;
+  return { user, decoded: data };
 };
 
 export const auth = (activation = true) => {
   return async (req, res, next) => {
     const authorization = req.headers.authorization;
-    req.user = await decodeToken({ authorization, next });
+    const { user, decoded } = await decodeToken({ authorization, next });
+    req.user = user;
+    req.decoded = decoded;
     if (activation) {
       if (!req.user.isActive) {
         return next(new userIsNotActive());

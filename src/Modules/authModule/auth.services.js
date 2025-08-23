@@ -16,8 +16,10 @@ import {
   emailAlreadyConfirmed,
   existEmail,
   emailNotConfirmed,
-  userIsNotActive,
 } from "../../Utils/errors.js";
+import { nanoid } from "nanoid";
+import { revokedTokenModel } from "../../DB/Models/revokedToken.model.js";
+
 const client = new OAuth2Client();
 
 export const signup = async (req, res, next) => {
@@ -101,7 +103,7 @@ export const login = async (req, res, next) => {
     return next(new invalidCredentials());
   }
   const payload = { _id: user._id };
-
+  const jwtid = nanoid();
   const accessSigniture =
     user.role == Roles.user
       ? process.env.USER_ACCESS_SIGNITUER
@@ -116,11 +118,13 @@ export const login = async (req, res, next) => {
     `${user.role} ` +
     jwt.sign(payload, accessSigniture, {
       expiresIn: process.env.ACCESS_TOKEN_EXPIRATION,
+      jwtid,
     });
   const refreshToken =
     `${user.role} ` +
     jwt.sign(payload, refreshSigniture, {
       expiresIn: process.env.REFRESH_TOKEN_EXPIRATION,
+      jwtid,
     });
   successHandler({
     res,
@@ -137,7 +141,7 @@ export const refreshToken = async (req, res, next) => {
   if (!authorization) {
     return next(new missingFields());
   }
-  const user = await decodeToken({
+  const { user, decoded } = await decodeToken({
     authorization,
     tokenType: types.refresh,
     next,
@@ -148,7 +152,7 @@ export const refreshToken = async (req, res, next) => {
     user.role == Roles.user
       ? process.env.USER_ACCESS_SIGNITUER
       : process.env.ADMIN_ACCESS_SIGNITUER,
-    { expiresIn: process.env.ACCESS_TOKEN_EXPIRATION }
+    { expiresIn: process.env.ACCESS_TOKEN_EXPIRATION, jwtid: decoded.jti }
   );
   successHandler({
     res,
@@ -426,6 +430,24 @@ export const updatePassword = async (req, res, next) => {
   }
   user.oldPasswords.push(user.password);
   user.password = newPassword;
+  user.credentialChangedAt = Date.now();
+  await user.save();
+  successHandler({ res, status: 200 });
+};
+
+export const logout = async (req, res, next) => {
+  const user = req.user;
+  const tokenData = req.decoded;
+  await create(revokedTokenModel, {
+    jti: tokenData.jti,
+    expireIn: Date.now() + 7 * 24 * 60 * 60,
+    user: user._id,
+  });
+  successHandler({ res, status: 200 });
+};
+
+export const lofoutAll = async (req, res, next) => {
+  const user = req.user;
   user.credentialChangedAt = Date.now();
   await user.save();
   successHandler({ res, status: 200 });

@@ -1,6 +1,7 @@
-const dataMethods = ["body", "params", "query"];
+const dataMethods = ["body", "params", "query", "file", "files"];
 import { gender, Roles } from "../DB/Models/userModel.js";
 import joi from "joi";
+import { fileType } from "../Utils/multer/multer.js";
 
 export const validation = (schema) => {
   return (req, res, next) => {
@@ -39,4 +40,17 @@ export const generalvalidation = {
   otp: joi.string(),
   id: joi.string().length(24).message("Invalid user id"),
   name: joi.string().min(3).max(15),
+  file: joi.object({
+    fieldname: joi.string().valid("image", "images").required(),
+    originalname: joi.string().required(),
+    encoding: joi.string().required(),
+    mimetype: joi
+      .string()
+      .valid(...fileType.image)
+      .required(),
+    destination: joi.string().required(),
+    filename: joi.string().required(),
+    path: joi.string().required(),
+    size: joi.number().required(),
+  }),
 };

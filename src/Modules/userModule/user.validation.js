@@ -13,3 +13,11 @@ export const checkIdSchema = {
     id: generalvalidation.id.required(),
   }),
 };
+
+export const uploadImageSchema = {
+  file: generalvalidation.file.required(),
+};
+
+export const uploadCoverImageSchema = {
+  files: joi.array().items(generalvalidation.file).max(5).required(),
+};

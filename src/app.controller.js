@@ -1,6 +1,7 @@
 import connectDB from "./DB/connection.js";
 import authController from "./Modules/authModule/auth.controller.js";
 import userController from "./Modules/userModule/user.controller.js";
+import messageController from "./Modules/messageModule/message.controller.js";
 import cors from "cors";
 
 const bootStrap = async (app, express) => {
@@ -8,10 +9,11 @@ const bootStrap = async (app, express) => {
   await connectDB();
   app.use(express.json());
 
-  app.use("/uploads", express.static("uploads"));
+  app.use("/src/uploads", express.static("./src/uploads"));
   app.use("/auth", authController);
   app.use("/user", userController);
-
+  app.use("/message", messageController);
+  
   app.use((err, req, res, next) => {
     res.status(err.cause || 500).json({
       message: err.message || "internal server error",
