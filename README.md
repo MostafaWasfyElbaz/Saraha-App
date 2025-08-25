@@ -1,4 +1,4 @@
-# Saraha (WhisperApp) Backend API
+# WhisperApp Backend API
 
 A Node.js REST API for anonymous messaging, user authentication, profile management, image uploads, and email verification.
 
