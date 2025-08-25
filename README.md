@@ -1,183 +1,213 @@
-# Saraha Backend API
+# Saraha (WhisperApp) Backend API
 
-A Node.js backend REST API for anonymous messaging, user authentication, profile management, and email verification, built with Express, MongoDB, and JWT.
+A Node.js REST API for anonymous messaging, user authentication, profile management, image uploads, and email verification.
+
+- Tech: `Node.js` + `Express` + `MongoDB/Mongoose`
+- Auth: `JWT` access/refresh tokens, Google OAuth login
+- Uploads: Local static hosting + Cloudinary
+- Validation: `Joi`
+- Emails: `Nodemailer` + event-driven OTP
 
 ## Features
 
-- User registration with email confirmation (OTP).
-- Login with password and social login (Google OAuth).
-- Password reset via OTP email.
-- JWT access and refresh token authentication.
-- User Profile Management – Share Profile, Update Account Details, and upload profile image.
-- Profile Image Upload with Multer and user-specific folder structure.
-- Encrypted Sensitive Data (e.g., phone number with AES encryption).
-- Validation with Joi schemas.
-- Centralized error and success handling.
-- Email notifications via Nodemailer and event-driven OTP system.
-- Static File Hosting for uploaded images.
+- **Auth**: Sign up with email OTP confirmation, system login, Google social login, refresh token, logout, update email with dual OTP, update password, forgot/change password with OTP and request limits.
+- **Profiles**: Share profile link, get public profile, update profile (name/phone), activate/deactivate/delete account.
+- **Images**: Local profile image upload, Cloudinary profile and cover images.
+- **Messages**: Anonymous messages with optional images to a user’s profile.
+- **Security**: Bcrypt password hashing, AES encryption for phone, JWT revoke list, role-based access, throttling/ban windows for OTP and resend requests.
 
-## Technologies
+## Project Structure
 
-- Backend: Node.js, Express.js
-- Database: MongoDB & Mongoose
-- Authentication: JWT (jsonwebtoken), Google OAuth
-- Security: Bcrypt (password hashing), CryptoJS (AES encryption)
-- Validation: Joi
-- File Uploads: Multer
-- Email Service: Nodemailer (Gmail SMTP by default)
-- Environment Config: dotenv
+```
+WhisperApp/
+├── index.js
+├── src/
+│   ├── app.controller.js
+│   ├── config/.env
+│   ├── DB/
+│   │   ├── connection.js
+│   │   ├── DBservices.js
+│   │   └── Models/
+│   │       ├── userModel.js
+│   │       ├── message.model.js
+│   │       └── revokedToken.model.js
+│   ├── Middelware/
+│   │   ├── auth.middleware.js
+│   │   └── validation.middleware.js
+│   ├── Modules/
+│   │   ├── authModule/
+│   │   │   ├── auth.controller.js
+│   │   │   ├── auth.services.js
+│   │   │   └── auth.validation.js
+│   │   ├── userModule/
+│   │   │   ├── user.controller.js
+│   │   │   ├── user.services.js
+│   │   │   └── user.validation.js
+│   │   └── messageModule/
+│   │       ├── message.controller.js
+│   │       ├── message.services.js
+│   │       └── message.validation.js
+│   └── Utils/
+│       ├── bcrypt.js
+│       ├── crypto.js
+│       ├── errors.js
+│       ├── successHandler.js
+│       ├── SendEmails/
+│       │   ├── emailEmitter.js
+│       │   ├── generateHTML.js
+│       │   └── sendEmail.js
+│       └── multer/
+│           ├── multer.js
+│           ├── multer cloud.js
+│           ├── cloudinaryConfig.js
+│           └── cloudinary.services.js
+```
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js >= 16.x
-- MongoDB instance (local or cloud)
-- Gmail account for sending emails (or modify for other providers)
-- Google OAuth Client ID for social login
+- Node.js 16+
+- MongoDB (local or Atlas)
+- Cloudinary account (for cloud uploads)
+- Gmail account/app password (or adjust SMTP)
+- Google OAuth Client ID (for social login)
 
-### Installation
-
-1. Clone the repo
-
-```bash
-git clone https://github.com/yourusername/saraha-backend.git
-cd saraha-backend
-```
-
-2. Install dependencies
+### Install
 
 ```bash
 npm install
 ```
 
-3. Create `.env` file inside `/src/config/` and add the following variables:
+### Environment Variables
+
+Create `src/config/.env` with the following keys (exact names used by the code):
 
 ```env
-PORT=anyPortNumber
-URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/dbname
+# Server
+PORT=3000
+URI=mongodb+srv://<user>:<pass>@cluster.mongodb.net/<db>
+
+# JWT (note: tokens are returned prefixed with the role)
+USER_ACCESS_SIGNITUER=...
+USER_REFRESH_SIGNITUER=...
+ADMIN_ACCESS_SIGNITUER=...
+ADMIN_REFRESH_SIGNITUER=...
+ACCESS_TOKEN_EXPIRATION=15m
+REFRESH_TOKEN_EXPIRATION=7d
+
+# Password hashing & encryption
+SALT=10
+ENCRYPTION_KEY=32-characters-random-string
+
+# OTP & ban windows
+OTP_ALPAHBET=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ  # (spelled as in code)
+OTP_SIZE=6
+OTP_EXPIRATION=300000           # ms
+BAN_EXPIRATION=900000           # ms
+
+# Google OAuth
+CLIENT_ID=<google-oauth-client-id>
+
+# Email (Gmail SMTP by default)
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=465
-EMAIL_USER=your-email@gmail.com
-EMAIL_PASS=your-email-password-or-app-password
-USER_ACCESS_SIGNITUER=yourUserAccessSecret
-USER_REFRESH_SIGNITUER=yourUserRefreshSecret
-ADMIN_ACCESS_SIGNITUER=yourAdminAccessSecret
-ADMIN_REFRESH_SIGNITUER=yourAdminRefreshSecret
-ACCESS_TOKEN_EXPIRATION=<anyNumber>m
-REFRESH_TOKEN_EXPIRATION=<anyNumber>d
-SALT=anyRoundNumberFrom1To14
-ENCRYPTION_KEY=32-character-random-string-for-AES
-OTP_ALPHABET=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ
-OTP_SIZE=anySizeNumber
-CLIENT_ID=your-google-oauth-client-id
-EXPIRATION=anyNumberinMilliseconds
+EMAIL_USER=your@gmail.com
+EMAIL_PASS=your-app-password
+
+# Cloudinary
+CLOUDINARY_CLOUD_NAME=...
+CLOUDINARY_API_KEY=...
+CLOUDINARY_API_SECRET=...
 ```
 
-4. Run the server
+### Run
 
 ```bash
-npm start
+npm run start:dev
 ```
 
-The server should now be running on `http://localhost:<PORT>`
+Server runs on `http://localhost:${PORT}`.
 
-## API Endpoints
+- Static files served from `./src/uploads` at `/src/uploads`.
+- DB connection uses `URI` from `.env` in `src/DB/connection.js`.
 
-### Auth Module
+## Authentication
 
-| Endpoint                          | Method | Description                   | Validation             | Allow TO  |
-|-----------------------------------|--------|-------------------------------|------------------------|-----------|   
-| `/auth/signup`                    | POST   | Register new user             | SignupSchema           | All       |
-| `/auth/login`                     | POST   | Login with email & password   | LoginSchema            | All       |
-| `/auth/social-login`              | POST   | Google OAuth login            | -                      | All       |
-| `/auth/confirm_email`             | PATCH  | Confirm email with OTP        | ConfirmEmailSchema     | All       |
-| `/auth/forget_password`           | PATCH  | Request password reset OTP    | ForgetPasswordSchema   | All       |
-| `/auth/change_password`           | PATCH  | Change password with OTP      | ChangePasswordSchema   | All       |
-| `/auth/refresh`                   | PATCH  | Refresh access token          | -                      | All       |
-| `/auth/resend-password-code`      | PATCH  | Resend password OTP           | ResendOtpSchema        | All       |
-| `/auth/resend-confirm-code`       | PATCH  | Resend email confirmation OTP | ResendOtpSchema        | All       |
-| `/auth/update-email`              | PATCH  | Update User Email             | updateEmailSchema      | All       |
-| `/auth/confirm-new-email`         | PATCH  | Confirm New Email             | confirmNewEmailSchema  | All       |
-| `/auth/resend-confirm-email-code` | PATCH  | Resend New Email OTP          | -                      | All       |
-| `/auth/update-password`           | PATCH  | Update Account Password       | updatePasswordSchema   | All       |
+- Login/refresh return tokens prefixed with the user role, e.g. `"user <jwt>"` or `"admin <jwt>"` from `auth.services.js`.
+- You must send the `authorization` header with the same prefix format expected by `auth.middleware.js`:
 
-
-### User Module
-
-| Endpoint                 | Method | Description                      | Auth Required | Validation          |Allow To  |
-|--------------------------|--------|----------------------------------|---------------|---------------------|----------|
-| `/user/share-profile`    | GET    | Get shareable user profile link  | Yes           | -                   | All      |
-| `/user/user-profile/:id` | GET    | Get public user profile          | No            | checkIdSchema       | All      |
-| `/user/update`           | PATCH  | Update user profile (name, phone)| Yes           | UpdateProfileSchema | All      |
-| `/user/deactivate/:id`   | PATCH  | Deactivate User Account          | Yes           | checkIdSchema       | All      |
-| `/user/activate/:id`     | PATCH  | Activate User Account            | Yes           | checkIdSchema       | All      |
-| `/user/upload-image`     | PATCH  | Upload Profile Image             | Yes           | Multer upload       | All      |
-| `/user/delete/:id`       | DELETE | Delete User Account              | Yes           | checkIdSchema       | Admin    |
-
-## Folder Structure
-
+```http
+authorization: user <jwt>
 ```
-Saraha-App/
-├── src/
-│   ├── DB/
-│   │   ├── Models/
-│   │   │   └── userModel.js
-│   │   ├── DBservices.js
-│   │   └── connection.js
-│   │ 
-│   ├── Middelware/
-│   │   ├── auth.middleware.js
-│   │   ├── validation.middleware.js
-│   │   ...
-│   │
-│   ├── Modules/
-│   │   ├── authModule/
-│   │   │   ├── auth.controller.js
-│   │   │   ├── auth.services.js
-│   │   │   ├── auth.validation.js
-│   │   │   └── ...
-│   │   ├── userModule/
-│   │   │   ├── user.controller.js
-│   │   │   ├── user.services.js
-│   │   │   ├── user.validation.js
-│   │   │   └── ...
-│   │   ├── messageModule/
-|   |   |    ├── message.controller.js
-|   |   |    ├── message.services.js
-|   |   |    ├── message.validation.js
-|   |   |    └── ...
-|   |   └── ...
-│   │
-│   ├── Utils/
-│   │   ├── ConfirmEmail/
-│   │   │   ├── emailEmitter.js
-│   │   │   ├── sendEmail.js
-│   │   │   └── generateHTML.js
-│   │   ├── bcrypt.js
-│   │   ├── crypto.js
-│   │   ├── errors.js
-│   │   └── successHandler.js
-│   │   └── multer/
-│   │       └── multer.js
-│   │
-│   ├── config/
-│   │   └── .env
-│   │
-│   └── app.controller.js
-│
-├── index.js
-```
+
+## API Overview
+
+Base paths are registered in `src/app.controller.js`:
+
+- Auth: `/auth`
+- Users: `/user`
+- Messages (nested under user profile): `/user/user-profile/:id/messages`
+
+### Auth
+
+Routes from `src/Modules/authModule/auth.controller.js`:
+
+- POST `/auth/signup`
+- POST `/auth/login`
+- POST `/auth/social-login`
+- POST `/auth/logout` (requires auth)
+- PATCH `/auth/refresh`
+- PATCH `/auth/confirm_email`
+- PATCH `/auth/forget_password`
+- PATCH `/auth/change_password`
+- PATCH `/auth/resend-password-code`
+- PATCH `/auth/resend-email-confirm-code`
+- PATCH `/auth/update-email` (requires auth)
+- PATCH `/auth/confirm-new-email` (requires auth)
+- PATCH `/auth/resend-new-email-confirm-code` (requires auth)
+- PATCH `/auth/update-password` (requires auth)
+
+Validation schemas are in `auth.validation.js`. OTP attempts/request limits and ban windows are enforced in `auth.middleware.js` and `auth.services.js`.
+
+### Users
+
+Routes from `src/Modules/userModule/user.controller.js`:
+
+- GET `/user/share-profile` (auth)
+- GET `/user/user-profile/:id`
+- PATCH `/user/update` (auth)
+- PATCH `/user/deactivate/:id` (auth)
+- PATCH `/user/activate/:id` (auth(false) – can activate self or by admin)
+- PATCH `/user/local-upload-profile-image` (auth, field: `image`)
+- PATCH `/user/cloud-upload-profile-image` (auth, field: `image`)
+- PATCH `/user/cloud-upload-cover-images` (auth, field: `images[]`, max 5)
+- DELETE `/user/delete/:id` (auth + `allowTo(admin)`)
+
+Local uploads are exposed under `/src/uploads`. Cloud uploads go to Cloudinary under `users/<userId>/...`.
+
+### Messages
+
+Mounted under a user profile via `router.use("/user-profile/:id/messages", ...)`:
+
+- GET `/user/user-profile/:id/messages/` — Get recipient’s messages
+- POST `/user/user-profile/:id/messages/send-message` — Send a message (optional images)
+  - Form fields: `body` (string, optional if images provided), `from` (optional sender userId), `to` (required recipient userId)
+  - Images: field `images` (array, max 5) uploaded to `messages/<recipientId>` in Cloudinary
+
+## Error/Success Format
+
+- Central error handler in `src/app.controller.js` returns `{ message, cause, stack }`.
+- `successHandler` returns `{ data, status }` with appropriate HTTP code.
+- Common errors defined in `src/Utils/errors.js`.
 
 ## Notes
 
-- Keep environment variables secret and never commit `.env` files.
-- Use strong secrets for JWT and AES encryption keys.
-- Use Google OAuth credentials for social login.
-- Email service uses Gmail SMTP by default; modify `sendEmail.js` if needed.
-- Joi validation ensures clean and safe input handling.
-- Multer uploads images into user-specific directories for better organization
+- Keep `src/config/.env` out of VCS. Use strong secrets and separate per environment.
+- Use Google OAuth `CLIENT_ID` for `/auth/social-login`.
+- For Gmail, prefer an App Password.
+- Role-prefixed JWTs are required in the `authorization` header.
 
 ## License
 
-MIT License
+MIT
